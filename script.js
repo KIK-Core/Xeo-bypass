@@ -1,8 +1,11 @@
-const SERVER_URL = ""; 
-
-function onCaptchaPassed(token) {
+// แก้จาก Function เป็น function (ตัวเล็ก) เพื่อให้ Captcha เรียกใช้งานได้
+function onCaptchaSuccess(token) {
+    console.log("Captcha Verified!");
     const btn = document.getElementById('btnBypass');
-    btn.disabled = false;
+    if (btn) {
+        btn.disabled = false; // ปลดล็อกปุ่มเมื่อติ๊กถูกสำเร็จ
+        btn.style.opacity = "1";
+    }
 }
 
 async function startBypass() {
@@ -11,36 +14,52 @@ async function startBypass() {
     const resultBox = document.getElementById('resultBox');
     const resultText = document.getElementById('resultText');
 
-    if (!targetUrl) return alert("กรุณาวางลิงก์!");
+    if (!targetUrl) return alert("Please enter a URL!");
 
-    btn.innerText = "กำลังประมวลผล...";
+    // ตรวจสอบว่าไฟล์ config.js โหลดมาจริงไหม
+    if (typeof XEO_CONFIG === 'undefined') {
+        alert("Error: config.js not found. Please check your files.");
+        return;
+    }
+
+    btn.innerText = "Processing...";
     btn.disabled = true;
 
     try {
-        const response = await fetch(`${SERVER_URL}/api/public/bypass?url=${encodeURIComponent(targetUrl)}`);
+        // ดึงค่า BASE_URL และ API_KEY จากไฟล์ config ที่คุณเตรียมไว้
+        const fetchUrl = `${XEO_CONFIG.BASE_URL}?key=${XEO_CONFIG.API_KEY}&url=${encodeURIComponent(targetUrl)}`;
+        
+        const response = await fetch(fetchUrl);
         const result = await response.json();
 
-        if (result.status === "success") {
-            resultBox.classList.remove('hidden');
-            resultText.innerText = result.destination;
+        resultBox.classList.remove('hidden');
+        
+        if (response.ok && result.status === "success") {
+            resultBox.style.borderColor = "#ccff00";
+            resultText.innerText = result.destination || JSON.stringify(result);
             btn.innerText = "Bypass Now";
+            resultBox.scrollIntoView({ behavior: 'smooth' });
         } else {
-            alert("ล้มเหลว: " + result.message);
-            btn.innerText = "ลองใหม่อีกครั้ง";
+            const errorMsg = result.message || result.error || "Unknown API Error";
+            resultBox.style.borderColor = "#ff4444";
+            resultText.innerText = `Error ${response.status}: ${errorMsg}`;
+            btn.innerText = "Try Again";
         }
     } catch (err) {
-        alert("ไม่สามารถเชื่อมต่อกับ Server ได้");
+        alert("Connection Failed: Cannot reach Xeo Bypass API.");
         btn.innerText = "Bypass Now";
     } finally {
         if (typeof turnstile !== 'undefined') {
             turnstile.reset();
-            btn.disabled = true;
+            btn.disabled = true; // บังคับให้ติ๊ก Captcha ใหม่เพื่อความปลอดภัย
         }
     }
 }
 
 function copyResult() {
     const text = document.getElementById('resultText').innerText;
-    navigator.clipboard.writeText(text);
-    alert("คัดลอกแล้ว!");
+    if (!text || text.includes("Error")) return;
+    navigator.clipboard.writeText(text).then(() => {
+        alert("Copied to clipboard!");
+    });
 }
